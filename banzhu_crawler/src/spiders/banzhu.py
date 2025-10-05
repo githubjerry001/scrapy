@@ -1,9 +1,8 @@
+from .base_banzhu_spider import BaseBanzhuSpider
 import scrapy
 
-class BanzhuSpider(scrapy.Spider):
+class BanzhuSpider(BaseBanzhuSpider):
     name = "banzhu"
-    allowed_domains = ["www.banzhu6666666.com"]
-    start_urls = ["https://www.banzhu6666666.com/"]
     
     custom_settings = {
         'USER_AGENT': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
@@ -29,25 +28,15 @@ class BanzhuSpider(scrapy.Spider):
     }
 
     def parse(self, response):
-        # 由于网站返回403错误，我们在这里添加处理逻辑
-        self.logger.info(f'访问 {response.url} 状态码: {response.status}')
-        
-        # 检查是否被阻止
-        if response.status == 403:
-            self.logger.warning("网站阻止了访问请求，可能需要更高级的反爬虫策略")
+        # 使用基类方法检查反爬虫机制
+        if self.handle_antispider(response):
             return
             
-        # 尝试提取页面信息
-        title = response.css('title::text').get()
-        self.logger.info(f'页面标题: {title}')
+        # 使用基类方法记录页面信息
+        title, links = self.log_page_info(response)
         
         # 保存页面内容以供分析
-        with open('homepage.html', 'w', encoding='utf-8') as f:
-            f.write(response.text)
-            
-        # 尝试提取链接
-        links = response.css('a::attr(href)').getall()
-        self.logger.info(f'找到 {len(links)} 个链接')
+        self.save_page_content(response, 'homepage.html')
         
         # 提取文章信息（使用通用选择器）
         articles = []

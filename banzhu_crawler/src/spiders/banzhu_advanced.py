@@ -1,13 +1,11 @@
+from .base_banzhu_spider import BaseBanzhuSpider
 import scrapy
 from scrapy.downloadermiddlewares.retry import RetryMiddleware
 from scrapy.utils.response import response_status_message
+import random
 
-class BanzhuAdvancedSpider(scrapy.Spider):
+class BanzhuAdvancedSpider(BaseBanzhuSpider):
     name = 'banzhu_advanced'
-    allowed_domains = ['banzhu6666666.com']
-    
-    # 使用多个起始URL并添加更多请求头
-    start_urls = ['https://www.banzhu6666666.com/']
     
     # 更详细的自定义设置
     custom_settings = {
@@ -54,28 +52,22 @@ class BanzhuAdvancedSpider(scrapy.Spider):
 
     def parse(self, response):
         """解析主页"""
-        self.logger.info(f'Visited {response.url}')
-        self.logger.info(f'Response status: {response.status}')
-        
-        # 检查是否是反爬虫页面
-        if response.status == 403 or "captcha" in response.text.lower() or "blocked" in response.text.lower():
-            self.logger.warning("可能遇到了反爬虫机制")
+        # 使用基类方法检查反爬虫机制
+        if self.handle_antispider(response):
             return
             
-        # 保存页面内容以便分析
-        with open('banzhu_advanced_homepage.html', 'w', encoding='utf-8') as f:
-            f.write(response.text)
+        # 使用基类方法记录页面信息
+        title, links = self.log_page_info(response)
         
-        # 提取页面标题
-        title = response.css('title::text').get()
-        self.logger.info(f'Page title: {title}')
+        # 保存页面内容以便分析
+        self.save_page_content(response, 'banzhu_advanced_homepage.html')
         
         # 尝试提取文章链接
         # 由于我们无法直接查看网站结构，我们将尝试常见的选择器
         article_links = response.css('a::attr(href)').re(r'.*/\d+\.html')  # 匹配可能的文章链接
         if not article_links:
             # 尝试其他可能的选择器
-            article_links = response.css('a::attr(href)').getall()
+            article_links = links
             
         self.logger.info(f'Found {len(article_links)} potential article links')
         
@@ -91,21 +83,16 @@ class BanzhuAdvancedSpider(scrapy.Spider):
 
     def parse_article(self, response):
         """解析文章页面"""
-        self.logger.info(f'Visited article page: {response.url}')
-        self.logger.info(f'Response status: {response.status}')
-        
-        # 检查是否是反爬虫页面
-        if response.status == 403 or "captcha" in response.text.lower() or "blocked" in response.text.lower():
-            self.logger.warning("可能遇到了反爬虫机制")
+        # 使用基类方法检查反爬虫机制
+        if self.handle_antispider(response):
             return
             
         # 保存文章页面内容
         filename = response.url.split('/')[-1] or 'article_page.html'
-        with open(f'advanced_article_{filename}', 'w', encoding='utf-8') as f:
-            f.write(response.text)
+        self.save_page_content(response, f'advanced_article_{filename}')
             
         # 尝试提取文章信息（使用通用选择器）
-        title = response.css('title::text').get() or response.css('h1::text').get()
+        title = self.extract_title(response) or response.css('h1::text').get()
         
         # 尝试提取文章内容（多种可能的选择器）
         content_selectors = [
@@ -159,5 +146,4 @@ class CustomRetryMiddleware(RetryMiddleware):
             'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
             'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1.1 Safari/605.1.15'
         ]
-        import random
         return random.choice(user_agents)

@@ -7,10 +7,21 @@ import time
 import requests
 from urllib.parse import urljoin, urlparse
 import re
+import random
+from itertools import cycle
 
 # 添加项目根目录到Python路径
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+# 导入代理管理器
+try:
+    from proxy_manager import proxy_manager
+except ImportError:
+    # 如果相对导入失败，尝试绝对导入
+    import sys
+    sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+    from proxy_manager import proxy_manager
 
 app = Flask(__name__, template_folder='../../templates')
 
@@ -204,7 +215,7 @@ def download_chapter_content(chapter_url):
 @app.route('/')
 def index():
     """主页 - 嵌入目标网站"""
-    return render_template('enhanced_index.html')
+    return render_template('index.html')
 
 @app.route('/proxy')
 def proxy():
@@ -222,6 +233,7 @@ def proxy():
         from urllib3.util.retry import Retry
         import time
         import chardet
+        import random
         
         # 创建会话并设置重试策略
         session = requests.Session()
@@ -237,9 +249,21 @@ def proxy():
         session.mount("http://", adapter)
         session.mount("https://", adapter)
         
-        # 设置移动设备User-Agent
+        # 使用随机User-Agent池来避免被识别
+        user_agents = [
+            'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1',
+            'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Mobile Safari/537.36',
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36'
+        ]
+        
+        # 获取随机代理服务器
+        proxy = proxy_manager.get_random_proxy()
+        
+        # 随机选择User-Agent
         headers = {
-            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1',
+            'User-Agent': random.choice(user_agents),
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
             'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8,en-US;q=0.7',
             'Accept-Encoding': 'gzip, deflate, br, zstd',
@@ -254,11 +278,43 @@ def proxy():
         
         session.headers.update(headers)
         
-        # 添加延迟以避免触发反爬虫机制
-        time.sleep(2)
+        # 添加随机延迟以避免触发反爬虫机制
+        time.sleep(random.uniform(2, 5))
+        
+        # 如果没有自动获取到代理，则使用预定义的代理池
+        if not proxy:
+            # 代理服务器池（用户可以在这里添加自己的代理服务器）
+            predefined_proxies = [
+                # 格式: {'http': 'http://user:password@ip:port', 'https': 'http://user:password@ip:port'}
+                # 示例: {'http': 'http://proxyuser:proxypass@1.2.3.4:8080', 'https': 'http://proxyuser:proxypass@1.2.3.4:8080'}
+                # 免费代理示例（请替换为有效的代理服务器）:
+                # {'http': 'http://1.2.3.4:8080', 'https': 'http://1.2.3.4:8080'},
+                # {'http': 'http://5.6.7.8:3128', 'https': 'http://5.6.7.8:3128'}
+            ]
+            proxy = random.choice(predefined_proxies) if predefined_proxies else None
         
         # 发送请求
-        response = session.get(url, timeout=30)
+        if proxy:
+            response = session.get(url, timeout=30, proxies=proxy)
+        else:
+            response = session.get(url, timeout=30)
+        
+        # 检查是否被封禁IP
+        if response.status_code == 403 or "Access denied" in response.text or " Ray ID:" in response.text:
+            print(f"IP被封禁，状态码: {response.status_code}")
+            # 如果使用了代理仍然被封禁，尝试不使用代理
+            if proxy:
+                try:
+                    response = session.get(url, timeout=30)
+                    if response.status_code != 403 and "Access denied" not in response.text and " Ray ID:" not in response.text:
+                        # 不使用代理成功了，继续处理
+                        pass
+                    else:
+                        return f"<!DOCTYPE html><html><head><title>访问被拒绝</title></head><body><h2>访问被拒绝</h2><p>您的IP地址已被目标网站封禁。</p><p>错误信息: {response.status_code}</p><p>解决方案:</p><ol><li>等待一段时间后再尝试访问</li><li>使用不同的网络环境</li><li>联系系统管理员</li><li>系统正在自动获取新的代理服务器，请稍后再试</li></ol><p>提示：系统已自动获取免费代理服务器，如问题持续存在，请稍后再试。</p></body></html>", 200, {'Content-Type': 'text/html; charset=utf-8'}
+                except Exception as e:
+                    return f"<!DOCTYPE html><html><head><title>访问被拒绝</title></head><body><h2>访问被拒绝</h2><p>您的IP地址已被目标网站封禁。</p><p>错误信息: {response.status_code}</p><p>解决方案:</p><ol><li>等待一段时间后再尝试访问</li><li>使用不同的网络环境</li><li>联系系统管理员</li><li>系统正在自动获取新的代理服务器，请稍后再试</li></ol><p>提示：系统已自动获取免费代理服务器，如问题持续存在，请稍后再试。</p></body></html>", 200, {'Content-Type': 'text/html; charset=utf-8'}
+            else:
+                return f"<!DOCTYPE html><html><head><title>访问被拒绝</title></head><body><h2>访问被拒绝</h2><p>您的IP地址已被目标网站封禁。</p><p>错误信息: {response.status_code}</p><p>解决方案:</p><ol><li>等待一段时间后再尝试访问</li><li>使用不同的网络环境</li><li>联系系统管理员</li><li>系统正在自动获取新的代理服务器，请稍后再试</li></ol><p>提示：系统已自动获取免费代理服务器，如问题持续存在，请稍后再试。</p></body></html>", 200, {'Content-Type': 'text/html; charset=utf-8'}
         
         # 智能编码检测和降级处理机制
         import chardet
@@ -303,7 +359,7 @@ def proxy():
                 response.encoding = encoding
                 content = response.text
                 # 简单验证：检查是否包含明显的乱码字符
-                if '锟斤拷' not in content and '��' not in content:
+                if '锟斤拷' not in content and '' not in content:
                     final_encoding = encoding
                     print(f"Successfully decoded with encoding: {encoding}")
                     break
@@ -447,7 +503,7 @@ def handle_cloudflare_challenge(url, headers):
 @app.route('/crawler')
 def crawler_control():
     """爬虫控制页面"""
-    return render_template('crawler_control.html', status=crawler_status)
+    return render_template('crawler_manager.html', status=crawler_status)
 
 @app.route('/select_article', methods=['POST'])
 def select_article():
@@ -591,4 +647,9 @@ def run_crawler():
         crawler_output.append(f"Exception: {str(e)}")
 
 if __name__ == '__main__':
+    # 启动代理自动更新
+    proxy_manager.start_auto_update()
+    # 初始化更新一次代理列表
+    proxy_manager.update_proxy_list()
+    
     app.run(debug=True, host='0.0.0.0', port=5000)

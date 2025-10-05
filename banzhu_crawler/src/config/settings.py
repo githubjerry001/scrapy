@@ -6,8 +6,8 @@ Banzhu Crawler Configuration Settings
 # Scrapy settings for banzhu crawler
 BOT_NAME = 'banzhu_crawler'
 
-SPIDER_MODULES = ['banzhu_crawler.spiders']
-NEWSPIDER_MODULE = 'banzhu_crawler.spiders'
+SPIDER_MODULES = ['src.spiders']
+NEWSPIDER_MODULE = 'src.spiders'
 
 # Obey robots.txt rules
 ROBOTSTXT_OBEY = False
