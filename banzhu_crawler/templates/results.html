@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>爬虫结果</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .nav {
+            text-align: center;
+            margin: 20px 0;
+        }
+        .nav a {
+            display: inline-block;
+            padding: 10px 20px;
+            background-color: #2196F3;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            margin: 0 10px;
+        }
+        .nav a:hover {
+            background-color: #1976D2;
+        }
+        .article {
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 20px;
+            margin: 20px 0;
+            background-color: #fafafa;
+        }
+        .article-title {
+            color: #2196F3;
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .article-content {
+            color: #666;
+            line-height: 1.6;
+        }
+        .article-url {
+            color: #4CAF50;
+            font-size: 14px;
+            margin-top: 10px;
+        }
+        .no-results {
+            text-align: center;
+            color: #999;
+            font-style: italic;
+            padding: 40px;
+        }
+        .stats {
+            background-color: #e3f2fd;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>爬虫结果</h1>
+        
+        <div class="nav">
+            <a href="/">控制面板</a>
+            <a href="/results">查看结果</a>
+        </div>
+        
+        <div class="stats">
+            共找到 {{ results|length }} 条记录
+        </div>
+        
+        {% if results %}
+            {% for item in results %}
+            <div class="article">
+                <div class="article-title">{{ item.title or '无标题' }}</div>
+                {% if item.content %}
+                    <div class="article-content">
+                        {% if item.content is string %}
+                            {{ item.content[:200] }}{% if item.content|length > 200 %}...{% endif %}
+                        {% else %}
+                            {{ item.content|join(' ')[:200] }}{% if item.content|join(' ')|length > 200 %}...{% endif %}
+                        {% endif %}
+                    </div>
+                {% endif %}
+                <div class="article-url">{{ item.url }}</div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="no-results">
+                暂无数据，请先运行爬虫抓取数据。
+            </div>
+        {% endif %}
+    </div>
+</body>
+</html>

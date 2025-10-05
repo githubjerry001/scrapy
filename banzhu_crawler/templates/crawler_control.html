@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>小说爬虫系统 - 爬虫控制</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .nav {
+            text-align: center;
+            margin: 20px 0;
+        }
+        .nav a {
+            display: inline-block;
+            padding: 10px 20px;
+            background-color: #2196F3;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            margin: 0 10px;
+        }
+        .nav a:hover {
+            background-color: #1976D2;
+        }
+        .controls {
+            text-align: center;
+            margin: 30px 0;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 0 10px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        #stopBtn {
+            background-color: #f44336;
+        }
+        #stopBtn:hover {
+            background-color: #da190b;
+        }
+        .status {
+            text-align: center;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        .status-idle {
+            background-color: #e7f3ff;
+            color: #0066cc;
+        }
+        .status-running {
+            background-color: #fff3e0;
+            color: #ff9800;
+        }
+        .status-finished {
+            background-color: #e8f5e9;
+            color: #4caf50;
+        }
+        .status-error {
+            background-color: #ffebee;
+            color: #f44336;
+        }
+        #output {
+            background-color: #000;
+            color: #00ff00;
+            padding: 20px;
+            border-radius: 5px;
+            height: 300px;
+            overflow-y: auto;
+            font-family: monospace;
+            white-space: pre-wrap;
+        }
+        .article-list {
+            margin: 30px 0;
+        }
+        .article-item {
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 10px 0;
+            background-color: #fafafa;
+        }
+        .article-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .article-title {
+            font-weight: bold;
+            color: #2196F3;
+            font-size: 18px;
+        }
+        .download-btn {
+            background-color: #FF9800;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .download-btn:hover {
+            background-color: #F57C00;
+        }
+        .chapters-list {
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid #eee;
+            padding: 10px;
+            border-radius: 4px;
+            background-color: white;
+        }
+        .chapter-item {
+            padding: 5px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .chapter-item:last-child {
+            border-bottom: none;
+        }
+        .downloaded-articles {
+            margin-top: 30px;
+        }
+        .downloaded-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+        }
+        .downloaded-info {
+            flex: 1;
+        }
+        .downloaded-title {
+            font-weight: bold;
+        }
+        .downloaded-meta {
+            font-size: 0.9em;
+            color: #666;
+        }
+        .file-link {
+            color: #4CAF50;
+            text-decoration: none;
+        }
+        .file-link:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>小说爬虫系统 - 爬虫控制</h1>
+        
+        <div class="nav">
+            <a href="/">网站浏览</a>
+            <a href="/crawler">爬虫控制</a>
+        </div>
+        
+        <div class="status status-{{ status }}" id="statusDiv">
+            当前状态: {{ status }}
+        </div>
+        
+        <div class="controls">
+            <button id="startBtn" onclick="startCrawler()">启动自动爬虫</button>
+            <button id="stopBtn" onclick="stopCrawler()" disabled>停止爬虫</button>
+        </div>
+        
+        <h2>实时输出:</h2>
+        <div id="output"></div>
+        
+        <div class="article-list">
+            <h2>已选择的文章 (<span id="selectedCount">0</span>)</h2>
+            <div id="selectedArticlesContainer">
+                <div class="no-articles">暂无选择的文章</div>
+            </div>
+        </div>
+        
+        <div class="downloaded-articles">
+            <h2>已下载的文章 (<span id="downloadedCount">0</span>)</h2>
+            <div id="downloadedArticlesContainer">
+                <div class="no-articles">暂无已下载的文章</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 更新状态和输出
+        function updateStatus() {
+            fetch('/status')
+                .then(response => response.json())
+                .then(data => {
+                    // 更新状态显示
+                    const statusDiv = document.getElementById('statusDiv');
+                    statusDiv.className = 'status status-' + data.status;
+                    statusDiv.textContent = '当前状态: ' + data.status;
+                    
+                    // 更新按钮状态
+                    const startBtn = document.getElementById('startBtn');
+                    const stopBtn = document.getElementById('stopBtn');
+                    
+                    if (data.status === 'running') {
+                        startBtn.disabled = true;
+                        stopBtn.disabled = false;
+                    } else {
+                        startBtn.disabled = false;
+                        stopBtn.disabled = true;
+                    }
+                    
+                    // 更新输出
+                    const outputDiv = document.getElementById('output');
+                    if (data.output && data.output.length > 0) {
+                        outputDiv.textContent = data.output.join('\n');
+                        // 滚动到底部
+                        outputDiv.scrollTop = outputDiv.scrollHeight;
+                    }
+                })
+                .catch(error => {
+                    console.error('Error updating status:', error);
+                });
+        }
+        
+        // 更新已选择的文章列表
+        function updateSelectedArticles() {
+            fetch('/selected_articles')
+                .then(response => response.json())
+                .then(articles => {
+                    const container = document.getElementById('selectedArticlesContainer');
+                    const countSpan = document.getElementById('selectedCount');
+                    
+                    countSpan.textContent = articles.length;
+                    
+                    if (articles.length === 0) {
+                        container.innerHTML = '<div class="no-articles">暂无选择的文章</div>';
+                        return;
+                    }
+                    
+                    container.innerHTML = '';
+                    articles.forEach((article, index) => {
+                        const articleElement = document.createElement('div');
+                        articleElement.className = 'article-item';
+                        articleElement.innerHTML = `
+                            <div class="article-header">
+                                <div class="article-title">${article.title}</div>
+                                <button class="download-btn" onclick="downloadArticle(${index})">下载完整文章</button>
+                            </div>
+                            <div>章节数量: ${article.chapters ? article.chapters.length : 0}</div>
+                            ${article.chapters && article.chapters.length > 0 ? 
+                              `<div class="chapters-list">
+                                 <strong>章节列表:</strong>
+                                 ${article.chapters.slice(0, 10).map(chapter => 
+                                   `<div class="chapter-item">${chapter.title}</div>`
+                                 ).join('')}
+                                 ${article.chapters.length > 10 ? 
+                                   `<div class="chapter-item">... 还有 ${article.chapters.length - 10} 章节</div>` 
+                                   : ''}
+                               </div>` 
+                              : '<div>未找到章节信息</div>'}
+                        `;
+                        container.appendChild(articleElement);
+                    });
+                })
+                .catch(error => {
+                    console.error('Error updating selected articles:', error);
+                });
+        }
+        
+        // 更新已下载的文章列表
+        function updateDownloadedArticles() {
+            fetch('/downloaded_articles')
+                .then(response => response.json())
+                .then(articles => {
+                    const container = document.getElementById('downloadedArticlesContainer');
+                    const countSpan = document.getElementById('downloadedCount');
+                    
+                    countSpan.textContent = articles.length;
+                    
+                    if (articles.length === 0) {
+                        container.innerHTML = '<div class="no-articles">暂无已下载的文章</div>';
+                        return;
+                    }
+                    
+                    container.innerHTML = '';
+                    articles.forEach(article => {
+                        const articleElement = document.createElement('div');
+                        articleElement.className = 'downloaded-item';
+                        articleElement.innerHTML = `
+                            <div class="downloaded-info">
+                                <div class="downloaded-title">${article.title}</div>
+                                <div class="downloaded-meta">
+                                    章节数: ${article.chapter_count} | 
+                                    文件: <a href="${article.filename}" class="file-link" download>${article.filename}</a>
+                                </div>
+                            </div>
+                        `;
+                        container.appendChild(articleElement);
+                    });
+                })
+                .catch(error => {
+                    console.error('Error updating downloaded articles:', error);
+                });
+        }
+        
+        // 启动爬虫
+        function startCrawler() {
+            fetch('/start_crawler', {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'started') {
+                    alert('爬虫已启动！');
+                } else {
+                    alert('爬虫已在运行中！');
+                }
+                updateStatus();
+            })
+            .catch(error => {
+                alert('启动爬虫时出错: ' + error);
+            });
+        }
+        
+        // 停止爬虫
+        function stopCrawler() {
+            fetch('/stop_crawler', {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'stopped') {
+                    alert('爬虫已停止！');
+                } else {
+                    alert('爬虫未在运行！');
+                }
+                updateStatus();
+            })
+            .catch(error => {
+                alert('停止爬虫时出错: ' + error);
+            });
+        }
+        
+        // 下载文章
+        function downloadArticle(index) {
+            if (confirm('确定要下载这篇文章的所有章节吗？')) {
+                fetch('/download_article', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        index: index
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        alert(`文章下载完成！保存为: ${data.filename}`);
+                        updateDownloadedArticles();
+                        updateSelectedArticles();
+                    } else {
+                        alert('下载失败: ' + data.message);
+                    }
+                })
+                .catch(error => {
+                    alert('下载时出错: ' + error);
+                });
+            }
+        }
+        
+        // 每2秒更新一次状态
+        setInterval(() => {
+            updateStatus();
+            updateSelectedArticles();
+            updateDownloadedArticles();
+        }, 2000);
+        
+        // 页面加载时更新一次状态
+        updateStatus();
+        updateSelectedArticles();
+        updateDownloadedArticles();
+    </script>
+</body>
+</html>
